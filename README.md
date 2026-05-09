@@ -19,3 +19,41 @@
 - Auto spinning
 - Auto watch ads
 - Auto conversion point-to-gems
+## TUTORIAL
+### Clone repository
+```
+git clone https://github.com/sipalingnode/fidgebot.git
+cd fidgebot
+```
+### Install dependencies
+```
+npm install
+```
+### Create Telegram Bot
+- Open [BotFather](https://t.me/BotFather)
+- Send: `/newbot`
+- Enter bot name & username
+- Copy the BOT TOKEN
+### Get Telegram Chat ID
+- Open [GetID](https://t.me/userinfobot)
+- Send: /start
+- Copy your Chat ID
+### Paste Bot Token & Chat ID di telegram.json
+```
+nano telegram.json
+```
+**Save file telegram.json dengan `CTRL+X+Y lalu Enter`**
+### Submit Email & Password di accounts.json
+```
+nano accounts.json
+```
+**Save file accounts.json dengan `CTRL+X+Y lalu Enter`**
+### Run bot
+```
+node bot.js
+```
+### Telegram commands
+- `/run`
+- `/stop`
+- `/status`
+- `/addaccount`
