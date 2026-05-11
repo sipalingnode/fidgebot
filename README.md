@@ -20,6 +20,13 @@
 - Auto watch ads
 - Auto conversion point-to-gems
 ## TUTORIAL
+### Install NodeJS
+
+```bash
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+apt install -y nodejs
+```
+
 ### Clone repository
 ```
 git clone https://github.com/sipalingnode/fidgebot.git
